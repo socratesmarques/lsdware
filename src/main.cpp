@@ -207,6 +207,8 @@ int run(const Options& options) {
     float response_ms = 0;
     std::optional<Clock::time_point> target_since;
     std::optional<Address> previous_target;
+    bool diag_target = false, diag_focused = false, diag_hotkey = false, diag_local_pawn = false;
+    std::optional<Angles> diag_current_angles, diag_target_angles, diag_output_angles;
     while (overlay.pump()) {
         keys.update();
         if (keys.pressed(config.exit_key))
@@ -278,8 +280,19 @@ int run(const Options& options) {
             }
         }
         std::optional<Target> target;
+        diag_target = false;
+        diag_focused = false;
+        diag_hotkey = false;
+        diag_local_pawn = false;
+        diag_current_angles.reset();
+        diag_target_angles.reset();
+        diag_output_angles.reset();
         if (frame) {
             target = select_target(*frame, config.bone, config.fov, config.require_visibility, scene);
+            diag_target = target.has_value();
+            diag_current_angles = frame->angles;
+            if (target)
+                diag_target_angles = target->angles;
             draw_frame(*frame, config, scene, size, target);
             const auto id =
                 target ? std::optional<Address>{frame->players[target->player].pawn} : std::nullopt;
@@ -293,11 +306,15 @@ int run(const Options& options) {
             }
             const bool focused = options.demo ? GetForegroundWindow() == overlay.window()
                                               : game && GetForegroundWindow() == game;
-            if (config.aim && target && !menu && focused && keys.down(config.aim_key)) {
+            diag_focused = focused;
+            diag_hotkey = keys.down(config.aim_key);
+            diag_local_pawn = options.demo ? true : (source && source->same_local_pawn(frame->local_pawn));
+            if (config.aim && target && !menu && focused && diag_hotkey) {
                 const auto angles = smooth(frame->angles, target->angles, config.smoothing, dt);
+                diag_output_angles = angles;
                 if (options.demo)
                     demo_angles = angles;
-                else if (options.write && source && source->same_local_pawn(frame->local_pawn)) {
+                else if (options.write && source && diag_local_pawn) {
                     // Sample was taken in this iteration, never reuse the previous frame after an RPM
                     // failure.
                     if (std::chrono::duration<float>(Clock::now() - now).count() < 0.1f &&
@@ -340,6 +357,31 @@ int run(const Options& options) {
             ImGui::Text("Last activation latency: %.0f ms", response_ms);
             ImGui::TextWrapped(
                 "Latency is target entering the eligible cone -> hotkey press, not a CS2 hit measurement.");
+            if (ImGui::CollapsingHeader("Aim diagnostics", ImGuiTreeNodeFlags_DefaultOpen)) {
+                const auto yn = [](bool value) { return value ? "YES" : "NO"; };
+                ImGui::Text("Assistance enabled: %s", yn(config.aim));
+                ImGui::Text("Target found: %s", yn(diag_target));
+                ImGui::Text("Menu closed: %s", yn(!menu));
+                ImGui::Text("Game/overlay focused: %s", yn(diag_focused));
+                ImGui::Text("Hotkey held (VK %d): %s", config.aim_key, yn(diag_hotkey));
+                ImGui::Text("Local pawn matches sample: %s", yn(diag_local_pawn));
+                ImGui::Text("Mode: %s", options.demo ? "DEMO" : (options.write ? "WRITE FLAG ENABLED" : "READ ONLY"));
+                if (diag_current_angles)
+                    ImGui::Text("Current angles: pitch %.2f | yaw %.2f",
+                                diag_current_angles->pitch, diag_current_angles->yaw);
+                else
+                    ImGui::TextUnformatted("Current angles: unavailable");
+                if (diag_target_angles)
+                    ImGui::Text("Target angles: pitch %.2f | yaw %.2f",
+                                diag_target_angles->pitch, diag_target_angles->yaw);
+                else
+                    ImGui::TextUnformatted("Target angles: unavailable");
+                if (diag_output_angles)
+                    ImGui::Text("Calculated output: pitch %.2f | yaw %.2f",
+                                diag_output_angles->pitch, diag_output_angles->yaw);
+                else
+                    ImGui::TextUnformatted("Calculated output: inactive");
+            }
             ImGui::SeparatorText("Collision geometry");
             ImGui::InputText("OBJ file", collision_path.data(), collision_path.size());
             ImGui::InputText("Map name", collision_map.data(), collision_map.size());
