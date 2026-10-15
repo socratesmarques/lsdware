@@ -326,6 +326,40 @@ int run(const Options& options) {
             }
         }
         label(ImGui::GetForegroundDrawList(), {14, 12}, IM_COL32_WHITE, "LSDWare | " + status);
+        if (!menu) {
+            auto* draw = ImGui::GetForegroundDrawList();
+            constexpr float left = 14.0f, top = 38.0f, width = 360.0f;
+            const float height = diag_output_angles ? 174.0f : 156.0f;
+            draw->AddRectFilled({left - 6, top - 6}, {left + width, top + height},
+                                IM_COL32(10, 14, 20, 190), 5.0f);
+            draw->AddRect({left - 6, top - 6}, {left + width, top + height},
+                          IM_COL32(170, 180, 195, 150), 5.0f);
+            const auto yn = [](bool value) { return value ? "YES" : "NO"; };
+            float y = top;
+            const auto line = [&](const std::string& text) mutable {
+                label(draw, {left, y}, IM_COL32_WHITE, text);
+                y += 18.0f;
+            };
+            line("Aim diagnostics");
+            line(std::string("Assistance enabled: ") + yn(config.aim));
+            line(std::string("Target found: ") + yn(diag_target));
+            line(std::string("Focused: ") + yn(diag_focused));
+            line(std::string("Hotkey held (VK ") + std::to_string(config.aim_key) + "): " + yn(diag_hotkey));
+            line(std::string("Local pawn matches sample: ") + yn(diag_local_pawn));
+            line(std::string("Mode: ") +
+                 (options.demo ? "DEMO" : (options.write ? "WRITE FLAG ENABLED" : "READ ONLY")));
+            if (diag_current_angles)
+                line("Current: pitch " + std::to_string(diag_current_angles->pitch) +
+                     " | yaw " + std::to_string(diag_current_angles->yaw));
+            if (diag_target_angles)
+                line("Target: pitch " + std::to_string(diag_target_angles->pitch) +
+                     " | yaw " + std::to_string(diag_target_angles->yaw));
+            if (diag_output_angles)
+                line("Calculated: pitch " + std::to_string(diag_output_angles->pitch) +
+                     " | yaw " + std::to_string(diag_output_angles->yaw));
+            else
+                line("Calculated: inactive");
+        }
         if (menu) {
             ImGui::SetNextWindowSize({580, 650}, ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowPos({25, 45}, ImGuiCond_FirstUseEver);
