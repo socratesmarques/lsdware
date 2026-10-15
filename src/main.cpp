@@ -329,14 +329,14 @@ int run(const Options& options) {
         if (!menu) {
             auto* draw = ImGui::GetForegroundDrawList();
             constexpr float left = 14.0f, top = 38.0f, width = 360.0f;
-            const float height = diag_output_angles ? 174.0f : 156.0f;
+            const float height = 186.0f;
             draw->AddRectFilled({left - 6, top - 6}, {left + width, top + height},
                                 IM_COL32(10, 14, 20, 190), 5.0f);
             draw->AddRect({left - 6, top - 6}, {left + width, top + height},
                           IM_COL32(170, 180, 195, 150), 5.0f);
             const auto yn = [](bool value) { return value ? "YES" : "NO"; };
             float y = top;
-            const auto line = [&](const std::string& text) mutable {
+            auto line = [&](const std::string& text) {
                 label(draw, {left, y}, IM_COL32_WHITE, text);
                 y += 18.0f;
             };
