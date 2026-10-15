@@ -1,0 +1,23 @@
+name: Build and test
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake --preset windows-msvc
+      - run: cmake --build --preset windows-msvc --parallel 2
+      - run: ctest --preset windows-msvc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsdware-windows-x64
+          path: |
+            build/windows/Release/lsdware.exe
+            build/windows/Release/data/
+  core:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake --preset linux-tests
+      - run: cmake --build --preset linux-tests --parallel 2
+      - run: ctest --preset linux-tests

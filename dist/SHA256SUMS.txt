@@ -1,0 +1,2 @@
+888242d834ffa55d34bfb98ebc8df747e786ca68de1433a32c0e63964550ec50  lsdware-source.zip
+cdd7b7415b840dd0d5de057b5ff7a778ef697d5e98be1a99ff6443bc0c9f81a7  lsdware-windows-x64.zip

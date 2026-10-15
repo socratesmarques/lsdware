@@ -1,0 +1,7 @@
+/build*/
+/.cache/
+/config.json
+/config.json.tmp
+*.log
+.vs/
+*.user

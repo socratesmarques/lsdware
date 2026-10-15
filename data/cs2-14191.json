@@ -1,0 +1,120 @@
+{
+  "build": 14191,
+  "source": {
+    "repository": "https://github.com/a2x/cs2-dumper",
+    "commit": "f0c84252829602347757ecbb0810d74d3c837a4b",
+    "timestamp": "2026-10-15T13:10:38.711921300+00:00",
+    "sha256": {
+      "info.json": "c0d0c4c5b2f30343e5ab6630fa95047a8314454535428f9677c195e32cadf001",
+      "offsets.json": "4d4bda718d4ef4209309622e37e9064f03d7d2f6368e42a39dad77e2b16056f9",
+      "client_dll.json": "619f7c344e2e3c2937e712f8c5f62fadb03f5f04ac0c882149f837da4f384664",
+      "interfaces.json": "f0162245783d62b8a6cf77fa906d2f2fc2627a464ea9196d6355ba7ef5be0158"
+    }
+  },
+  "offsets": {
+    "client.dll": {
+      "dwCSGOInput": 39302720,
+      "dwEntityList": 41003272,
+      "dwGameEntitySystem": 41003272,
+      "dwGameEntitySystem_highestEntityIndex": 8480,
+      "dwGameRules": 39211472,
+      "dwGlobalVars": 35848336,
+      "dwGlowManager": 39198448,
+      "dwLocalPlayerController": 39046008,
+      "dwLocalPlayerPawn": 39212824,
+      "dwPlantedC4": 38581184,
+      "dwPrediction": 39212576,
+      "dwSensitivity": 39201304,
+      "dwSensitivity_sensitivity": 88,
+      "dwViewAngles": 39304392,
+      "dwViewMatrix": 39235616,
+      "dwViewRender": 39238120,
+      "dwWeaponC4": 38574896
+    },
+    "engine2.dll": {
+      "dwBuildNumber": 6410220,
+      "dwNetworkGameClient": 9547712,
+      "dwNetworkGameClient_clientTickCount": 920,
+      "dwNetworkGameClient_deltaTick": 588,
+      "dwNetworkGameClient_isBackgroundMap": 2888767,
+      "dwNetworkGameClient_localPlayer": 248,
+      "dwNetworkGameClient_maxClients": 576,
+      "dwNetworkGameClient_serverTickCount": 588,
+      "dwNetworkGameClient_signOnState": 560,
+      "dwWindowHeight": 9564988,
+      "dwWindowWidth": 9564984
+    },
+    "inputsystem.dll": {
+      "dwInputSystem": 289728
+    },
+    "matchmaking.dll": {
+      "dwGameTypes": 1773520
+    },
+    "soundsystem.dll": {
+      "dwSoundSystem": 5460816,
+      "dwSoundSystem_engineViewData": 108
+    }
+  },
+  "fields": {
+    "CEntityInstance": {
+      "m_pEntity": 16
+    },
+    "CEntityIdentity": {
+      "m_designerName": 32
+    },
+    "C_BaseEntity": {
+      "m_iHealth": 844,
+      "m_iMaxHealth": 840,
+      "m_lifeState": 852,
+      "m_iTeamNum": 999,
+      "m_pGameSceneNode": 816
+    },
+    "CGameSceneNode": {
+      "m_vecAbsOrigin": 200,
+      "m_bDormant": 259
+    },
+    "CSkeletonInstance": {
+      "m_modelState": 320
+    },
+    "CCSPlayerController": {
+      "m_hPlayerPawn": 2348
+    },
+    "CBasePlayerController": {
+      "m_iszPlayerName": 1788
+    },
+    "C_BaseModelEntity": {
+      "m_vecViewOffset": 3936
+    },
+    "C_BasePlayerPawn": {
+      "m_pWeaponServices": 4848
+    },
+    "CPlayer_WeaponServices": {
+      "m_hActiveWeapon": 96
+    }
+  },
+  "layout": {
+    "schema": {
+      "scopes": 400,
+      "class_bindings": 1376
+    },
+    "entities": {
+      "chunks": 16,
+      "stride": 112,
+      "identity_handle": 16
+    },
+    "bones": {
+      "data": 128,
+      "stride": 32,
+      "indices": [
+        6,
+        5,
+        4
+      ]
+    },
+    "map_name": 384
+  },
+  "verification": {
+    "windows_runtime_tested": false,
+    "notes": "Offsets and reflected fields come from the pinned community dump, not an official CS2 SDK. Entity, bone and map-name structural layout remains unverified against the live build. Engine trace is not implemented; collision is external geometry."
+  }
+}

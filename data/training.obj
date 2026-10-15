@@ -1,0 +1,8 @@
+# Synthetic test wall: X forward, Y left, Z up. Source world units.
+# This is not a CS2 map export.
+v 250 -40 0
+v 250 40 0
+v 250 40 120
+v 250 -40 120
+f 1 2 3
+f 1 3 4
