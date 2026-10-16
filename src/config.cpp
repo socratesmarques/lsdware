@@ -40,7 +40,9 @@ void to_json(nlohmann::json& j, const Config& c) {
            {"health", c.health},
            {"distance", c.distance},
            {"weapons", c.weapons},
-           {"teammates", c.teammates}}},
+           {"teammates", c.teammates},
+           {"show_los", c.show_los},
+           {"show_target_marker", c.show_target_marker}}},
          {"aim",
           {{"enabled", c.aim},
            {"fov_degrees", c.fov},
@@ -71,6 +73,8 @@ void from_json(const nlohmann::json& j, Config& c) {
     n.distance = v.at("distance");
     n.weapons = v.at("weapons");
     n.teammates = v.at("teammates");
+    n.show_los = v.value("show_los", false);
+    n.show_target_marker = v.value("show_target_marker", false);
     n.aim = a.at("enabled");
     n.fov = a.at("fov_degrees");
     n.smoothing = a.at("smoothing_seconds");

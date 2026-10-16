@@ -172,7 +172,8 @@ void geometry_tests(const std::filesystem::path& data) {
 }
 void config_tests() {
     Config c;
-    require(!c.show_fov && !c.show_aim_diagnostics && !c.trigger, "New controls default to off");
+    require(!c.show_fov && !c.show_aim_diagnostics && !c.trigger && !c.show_los && !c.show_target_marker,
+            "New controls default to off");
     const auto path = std::filesystem::temp_directory_path() / "lsdware-config-test.json";
     c.aim = true;
     c.fov = 12;
@@ -180,6 +181,8 @@ void config_tests() {
     c.bone = Bone::Chest;
     c.show_fov = true;
     c.show_aim_diagnostics = true;
+    c.show_los = true;
+    c.show_target_marker = true;
     c.trigger = true;
     c.trigger_key = 0x12;
     c.trigger_delay_ms = 125;
@@ -187,8 +190,9 @@ void config_tests() {
     c.save(path);
     auto result = Config::load(path);
     require(result.aim && result.bone == Bone::Chest, "Config roundtrip retains values");
-    require(result.show_fov && result.show_aim_diagnostics && result.trigger && result.trigger_key == 0x12 &&
-                result.trigger_delay_ms == 125 && result.trigger_interval_ms == 350,
+    require(result.show_fov && result.show_aim_diagnostics && result.show_los && result.show_target_marker &&
+                result.trigger && result.trigger_key == 0x12 && result.trigger_delay_ms == 125 &&
+                result.trigger_interval_ms == 350,
             "New options survive save/load");
     near(result.fov, 12);
     c.fov = 8;
@@ -199,8 +203,11 @@ void config_tests() {
     j["aim"].erase("show_diagnostics");
     j["aim"].erase("trigger");
     j["hotkeys"].erase("trigger");
+    j["visual"].erase("show_los");
+    j["visual"].erase("show_target_marker");
     auto legacy = j.get<Config>();
-    require(!legacy.show_fov && !legacy.show_aim_diagnostics && !legacy.trigger && legacy.trigger_key == 6,
+    require(!legacy.show_fov && !legacy.show_aim_diagnostics && !legacy.show_los &&
+                !legacy.show_target_marker && !legacy.trigger && legacy.trigger_key == 6,
             "Legacy JSON loads with new controls disabled");
     require(legacy.aim && legacy.fov == c.fov, "Legacy user settings are preserved");
     j["hotkeys"]["menu"] = 6;

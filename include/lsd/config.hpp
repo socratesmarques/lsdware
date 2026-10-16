@@ -6,6 +6,7 @@ struct Config {
     bool boxes{true}, names{true}, health{true}, distance{true}, weapons{true}, teammates{true};
     bool aim{false}, require_visibility{true};
     bool show_fov{false}, show_aim_diagnostics{false}, trigger{false};
+    bool show_los{false}, show_target_marker{false};
     int trigger_key{0x06}, trigger_delay_ms{80}, trigger_interval_ms{150};
     float fov{5}, smoothing{0.15f};
     Bone bone{Bone::Head};

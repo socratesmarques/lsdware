@@ -185,7 +185,7 @@ void draw_frame(const Frame& f, const Config& c, const CollisionScene& scene, Ve
         if (!bottom.empty())
             label(draw, {feet->x, feet->y + 3}, IM_COL32_WHITE, bottom, true);
         const auto point = p.bones[static_cast<std::size_t>(c.bone)];
-        if (point) {
+        if (c.show_los && point) {
             const auto v = scene.visibility(f.map, f.eye, *point);
             const char* text = v == Visibility::Visible
                                    ? "LOS static"
@@ -193,7 +193,7 @@ void draw_frame(const Frame& f, const Config& c, const CollisionScene& scene, Ve
             label(draw, {right + 5, top->y}, IM_COL32(210, 210, 210, 255), text);
         }
     }
-    if (target)
+    if (c.show_target_marker && target)
         if (auto p = project(target->point, f.matrix, size))
             draw->AddCircle({p->x, p->y}, 6, IM_COL32(110, 255, 160, 255), 24, 2);
 }
@@ -447,6 +447,9 @@ int run(const Options& options) {
             ImGui::Checkbox("Weapons", &config.weapons);
             ImGui::SameLine();
             ImGui::Checkbox("Teammates", &config.teammates);
+            ImGui::Checkbox("Show LOS labels", &config.show_los);
+            ImGui::SameLine();
+            ImGui::Checkbox("Show target marker (green)", &config.show_target_marker);
             ImGui::SeparatorText("Aim training");
             ImGui::Checkbox("Show FOV circle", &config.show_fov);
             ImGui::SameLine();

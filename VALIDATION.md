@@ -70,3 +70,7 @@ Após a correção: compilação cruzada Windows x64 aprovada e 7/7 suítes do n
 Adicionadas opções persistentes para mostrar o FOV e o painel de diagnóstico, ambas desligadas inicialmente, com carregamento retrocompatível de JSONs existentes. Adicionado triggerbot independente, com Mouse 5, atraso/intervalo configuráveis e seleção pela entidade sob a mira. O campo `m_iIDEntIndex` (14044) foi obtido do dump original após conferência de seu SHA-256. O modo de demonstração simula cliques; o modo real usa a API Windows `SendInput`.
 
 Nesta atualização, os testes passaram para 8 suítes e 100 verificações, e o executável completo foi recompilado para Windows x64 com MinGW. Os testes exercitam o núcleo e fixtures de memória; não são evidência de disparos dentro do jogo. Os pacotes em `dist/` incluem a atualização.
+
+## Exibição de LOS e marcador do alvo
+
+Adicionados controles independentes para os textos de LOS e a bolinha verde, desligados por padrão. A persistência e o carregamento de JSONs antigos estão cobertos pelas verificações existentes de configuração. As opções condicionam somente a renderização desses elementos; não alteram os filtros de alvo ou de visibilidade. A compilação Windows x64 e as 8 suítes (100 verificações) foram repetidas após essa alteração. A inspeção visual no Windows permanece pendente.

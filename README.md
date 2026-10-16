@@ -48,6 +48,8 @@ O FOV é o **meio-ângulo do cone em graus**, não um raio em pixels. A suaviza�
 
 Na seção `Aim training`, `Show FOV circle` mostra/oculta o desenho do cone e `Show aim diagnostics` mostra/oculta o painel de diagnóstico. **Ambos ficam desligados por padrão.** Ocultar o círculo não altera a seleção por FOV. Essas preferências são salvas no JSON; arquivos antigos continuam válidos e recebem os dois valores desligados.
 
+Na seção `Visual`, `Show LOS labels` mostra/oculta os textos `LOS unknown`, `LOS static` e `Blocked`. `Show target marker (green)` controla separadamente a bolinha verde do alvo selecionado. **Ambos ficam desligados por padrão**, inclusive ao carregar um JSON antigo sem essas opções; use `Save JSON` para guardar suas preferências. Essas opções alteram apenas o desenho: a seleção do AIM, o triggerbot e a checagem de visibilidade continuam funcionando conforme suas configurações.
+
 ### Triggerbot
 
 Marque `Enable triggerbot while hotkey held`, feche o menu e segure **Mouse 5**. Ele é independente do checkbox da assistência: usa a entidade sob a mira, lida de `C_CSPlayerPawn::m_iIDEntIndex`, e não dispara apenas porque um alvo entrou no FOV da assistência.
