@@ -90,6 +90,9 @@
     },
     "CPlayer_WeaponServices": {
       "m_hActiveWeapon": 96
+    },
+    "C_CSPlayerPawn": {
+      "m_iIDEntIndex": 14044
     }
   },
   "layout": {

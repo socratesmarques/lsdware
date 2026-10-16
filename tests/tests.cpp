@@ -172,19 +172,51 @@ void geometry_tests(const std::filesystem::path& data) {
 }
 void config_tests() {
     Config c;
+    require(!c.show_fov && !c.show_aim_diagnostics && !c.trigger, "New controls default to off");
     const auto path = std::filesystem::temp_directory_path() / "lsdware-config-test.json";
     c.aim = true;
     c.fov = 12;
     c.smoothing = 0.4f;
     c.bone = Bone::Chest;
+    c.show_fov = true;
+    c.show_aim_diagnostics = true;
+    c.trigger = true;
+    c.trigger_key = 0x12;
+    c.trigger_delay_ms = 125;
+    c.trigger_interval_ms = 350;
     c.save(path);
     auto result = Config::load(path);
     require(result.aim && result.bone == Bone::Chest, "Config roundtrip retains values");
+    require(result.show_fov && result.show_aim_diagnostics && result.trigger && result.trigger_key == 0x12 &&
+                result.trigger_delay_ms == 125 && result.trigger_interval_ms == 350,
+            "New options survive save/load");
     near(result.fov, 12);
     c.fov = 8;
     c.save(path);
     near(Config::load(path).fov, 8);
     auto j = nlohmann::json(c);
+    j["aim"].erase("show_fov");
+    j["aim"].erase("show_diagnostics");
+    j["aim"].erase("trigger");
+    j["hotkeys"].erase("trigger");
+    auto legacy = j.get<Config>();
+    require(!legacy.show_fov && !legacy.show_aim_diagnostics && !legacy.trigger && legacy.trigger_key == 6,
+            "Legacy JSON loads with new controls disabled");
+    require(legacy.aim && legacy.fov == c.fov, "Legacy user settings are preserved");
+    j["hotkeys"]["menu"] = 6;
+    legacy = j.get<Config>();
+    require(legacy.menu_key == 6 && legacy.trigger_key != 6,
+            "Legacy Mouse 5 binding survives trigger hotkey migration");
+    j = nlohmann::json(c);
+    j["aim"]["trigger"]["interval_ms"] = 0;
+    throws([&] { j.get<Config>(); });
+    j = nlohmann::json(c);
+    j["aim"]["trigger"]["delay_ms"] = -1;
+    throws([&] { j.get<Config>(); });
+    j = nlohmann::json(c);
+    j["hotkeys"]["trigger"] = 1;
+    throws([&] { j.get<Config>(); });
+    j = nlohmann::json(c);
     j["aim"]["fov_degrees"] = -1;
     throws([&] { j.get<Config>(); });
     j = nlohmann::json(c);
@@ -341,12 +373,17 @@ void entity_tests(const std::filesystem::path& data) {
     m.put<Address>(client.base + 0x1200, 0x3E0000);
     m.put<Address>(0x3E0000 + 0x180, 0x3E1000);
     m.string(0x3E1000, "maps/de_test.vpk");
+    m.put<std::int32_t>(local + p.field("C_CSPlayerPawn", "m_iIDEntIndex"), 4);
     Source2 source(m, client, engine, schema, p);
     auto frame = source.sample();
     require(frame.alive && frame.team == 2 && frame.local_pawn == local, "Local pawn sampled");
     near(frame.eye.z, 64);
     require(frame.map == "de_test", "Remote map normalized");
     require(frame.players.size() == 1, "One opponent sampled");
+    require(frame.crosshair_pawn == enemy, "Crosshair index resolves to the remote pawn");
+    m.put<std::int32_t>(local + p.field("C_CSPlayerPawn", "m_iIDEntIndex"), -1);
+    require(source.sample().crosshair_pawn == 0, "Invalid crosshair index produces no target");
+    m.put<std::int32_t>(local + p.field("C_CSPlayerPawn", "m_iIDEntIndex"), 4);
     require(frame.players[0].weapon == "ak47" && frame.players[0].name == "Fixture opponent",
             "Name and weapon read");
     require(frame.players[0].bones[0].has_value(), "Head bone read");
@@ -361,6 +398,55 @@ void entity_tests(const std::filesystem::path& data) {
     m.put<std::uint32_t>(lid + 16, 0x10003);
     require(!source.same_local_pawn(local), "Respawn invalidates old local pawn");
     throws([&] { source.sample(); });
+}
+void trigger_tests(const std::filesystem::path& data) {
+    TriggerTimer timer;
+    require(!timer.update(2, 0, 80, 150), "No shot on initial acquisition");
+    require(!timer.update(2, 79, 80, 150), "Wait for full dwell delay");
+    require(timer.update(2, 80, 80, 150), "Fire after dwell delay");
+    require(!timer.update(2, 229, 80, 150), "Interval suppresses duplicate fire");
+    require(timer.update(2, 230, 80, 150), "Repeat only after interval");
+    require(!timer.update(3, 400, 80, 150), "Switching targets restarts dwell");
+    require(!timer.update(3, 479, 80, 150), "New target must satisfy its own delay");
+    require(timer.update(3, 480, 80, 150), "New target fires after delay");
+    require(!timer.update(0, 500, 80, 150), "Lost activation cancels pending targeting");
+    require(!timer.update(3, 550, 80, 150), "Reactivation starts a new delay");
+    require(timer.update(3, 630, 80, 150), "Reactivation respects both cooldown and delay");
+    require(!timer.update(0, 640, 0, 150), "Disabled does not fire");
+    require(!timer.update(2, 641, 0, 150), "Zero delay cannot bypass global interval");
+    require(timer.update(2, 780, 0, 150), "Zero delay fires when cooldown expires");
+    Frame f;
+    f.alive = true;
+    f.team = 2;
+    f.local_pawn = 1;
+    f.eye = {0, 0, 64};
+    f.map = "training";
+    Player p;
+    p.pawn = 2;
+    p.team = 3;
+    p.health = 100;
+    p.bones[0] = Vec3{500, 0, 64};
+    f.players.push_back(p);
+    CollisionScene scene;
+    require(!trigger_candidate(f, Bone::Head, false, scene), "Aim FOV alone does not cause a trigger shot");
+    f.crosshair_pawn = 2;
+    require(trigger_candidate(f, Bone::Head, false, scene) == 2, "Enemy under crosshair is eligible");
+    require(!trigger_candidate(f, Bone::Head, true, scene), "Unknown visibility blocks trigger");
+    scene.load_obj(data / "training.obj", "training");
+    require(!trigger_candidate(f, Bone::Head, true, scene), "Wall blocks trigger");
+    f.players[0].bones[0] = Vec3{500, 200, 64};
+    require(trigger_candidate(f, Bone::Head, true, scene) == 2, "Clear static LOS permits trigger");
+    f.players[0].team = 2;
+    require(!trigger_candidate(f, Bone::Head, false, scene), "No friendly fire");
+    f.players[0].team = 3;
+    f.players[0].health = 0;
+    require(!trigger_candidate(f, Bone::Head, false, scene), "Dead target is rejected");
+    f.players[0].health = 100;
+    f.alive = false;
+    require(!trigger_candidate(f, Bone::Head, false, scene), "Dead local player cannot trigger");
+    f.alive = true;
+    f.crosshair_pawn = 999;
+    require(!trigger_candidate(f, Bone::Head, false, scene), "Unvalidated crosshair entity is rejected");
 }
 int main(int argc, char** argv) {
     try {
@@ -382,6 +468,8 @@ int main(int argc, char** argv) {
             profile_tests(data);
         else if (suite == "entities")
             entity_tests(data);
+        else if (suite == "trigger")
+            trigger_tests(data);
         else
             throw std::runtime_error("Unknown suite");
         std::cout << suite << ": " << checks << " checks passed\n";

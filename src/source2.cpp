@@ -332,6 +332,16 @@ bool Source2::same_local_pawn(Address pawn) const {
     const auto list = memory_.read<Address>(entity_list_);
     return pawn && list && local_pawn(*list) == pawn;
 }
+Address Source2::crosshair_pawn(Address local) const {
+    const auto type = fields_.find("C_CSPlayerPawn");
+    if (!local || type == fields_.end() || !type->second.contains("m_iIDEntIndex"))
+        return 0;
+    const auto index = memory_.read<std::int32_t>(local + type->second.at("m_iIDEntIndex"));
+    const auto list = memory_.read<Address>(entity_list_);
+    if (!index || *index <= 0 || *index > 0x7FFF || !list)
+        return 0;
+    return entity(*list, static_cast<std::uint32_t>(*index));
+}
 std::optional<Vec3> Source2::origin(Address pawn) const {
     const auto scene = memory_.read<Address>(pawn + field("C_BaseEntity", "m_pGameSceneNode"));
     if (!scene || !pointer(*scene))
@@ -436,6 +446,7 @@ Frame Source2::sample() const {
     }
     if (!same_local_pawn(f.local_pawn))
         throw std::runtime_error("Local pawn changed during sampling");
+    f.crosshair_pawn = crosshair_pawn(f.local_pawn);
     return f;
 }
 } // namespace lsd

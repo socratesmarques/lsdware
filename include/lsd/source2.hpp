@@ -58,6 +58,7 @@ class Source2 {
         return diagnostics_;
     }
     bool same_local_pawn(Address pawn) const;
+    Address crosshair_pawn(Address local) const;
 
   private:
     Address entity(Address list, std::uint32_t index) const;

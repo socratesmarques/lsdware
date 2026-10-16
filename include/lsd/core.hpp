@@ -57,6 +57,7 @@ struct Frame {
     Angles angles;
     int team{};
     std::uint64_t local_pawn{};
+    std::uint64_t crosshair_pawn{};
     bool alive{};
     std::string map;
     std::vector<Player> players;
@@ -98,4 +99,15 @@ struct Target {
 std::optional<Target> select_target(const Frame& frame, Bone bone, float fov, bool require_visibility,
                                     const CollisionScene& scene);
 Frame demo_frame(double seconds, Angles angles, Vec2 viewport);
+std::uint64_t trigger_candidate(const Frame& frame, Bone bone, bool require_visibility,
+                                const CollisionScene& scene);
+// Called every frame, including with candidate=0 on any lost activation condition.
+class TriggerTimer {
+  public:
+    bool update(std::uint64_t candidate, double now_ms, int delay_ms, int interval_ms);
+
+  private:
+    std::uint64_t candidate_{};
+    double entered_ms_{}, next_shot_ms_{};
+};
 } // namespace lsd

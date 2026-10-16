@@ -39,11 +39,27 @@ Não é mais necessário passar `--write-angles`; abrir o executável normalment
 |---|---|---:|
 | Abrir/fechar menu | Insert | 45 |
 | Segurar assistência | Mouse 4 / XBUTTON1 | 5 |
+| Segurar triggerbot | Mouse 5 / XBUTTON2 | 6 |
 | Encerrar aplicativo | End | 35 |
 
-As três teclas podem ser alteradas no menu, por código virtual do Windows, usando `Apply keys`. Códigos inválidos e duplicados são rejeitados. `Save JSON` salva `config.json` ao lado do executável; `Load JSON` recarrega uma configuração validada. `--config arquivo.json` e `--profile arquivo.json` permitem caminhos alternativos. Caminhos relativos de colisão são resolvidos a partir do diretório do JSON de configuração. O comando de gravação usa arquivo temporário e substituição do arquivo de destino.
+As teclas podem ser alteradas no menu, por código virtual do Windows, usando `Apply keys`. O triggerbot pode compartilhar a tecla da assistência, mas não pode usar o botão esquerdo, a tecla de menu ou a de encerramento. `Save JSON` salva `config.json` ao lado do executável; `Load JSON` recarrega uma configuração validada. `--config arquivo.json` e `--profile arquivo.json` permitem caminhos alternativos. Caminhos relativos de colisão são resolvidos a partir do diretório do JSON de configuração. O comando de gravação usa arquivo temporário e substituição do arquivo de destino.
 
 O FOV é o **meio-ângulo do cone em graus**, não um raio em pixels. A suavização é uma constante de tempo em segundos: `0` aplica a direção imediatamente; `0.15` converge gradualmente, independentemente da taxa de quadros. Cabeça, pescoço e peito usam os índices do perfil. Alvos aliados, mortos, com dados inválidos ou fora do cone são descartados. A escrita é limitada ao endereço de ângulos resolvido para o perfil, com normalização, conferência do pawn local e dados da iteração atual.
+
+Na seção `Aim training`, `Show FOV circle` mostra/oculta o desenho do cone e `Show aim diagnostics` mostra/oculta o painel de diagnóstico. **Ambos ficam desligados por padrão.** Ocultar o círculo não altera a seleção por FOV. Essas preferências são salvas no JSON; arquivos antigos continuam válidos e recebem os dois valores desligados.
+
+### Triggerbot
+
+Marque `Enable triggerbot while hotkey held`, feche o menu e segure **Mouse 5**. Ele é independente do checkbox da assistência: usa a entidade sob a mira, lida de `C_CSPlayerPawn::m_iIDEntIndex`, e não dispara apenas porque um alvo entrou no FOV da assistência.
+
+- Inicia desligado. Atraso padrão: **80 ms**; intervalo entre cliques: **150 ms**, ambos configuráveis.
+- Exige jogador local vivo, inimigo vivo sob a mira, menu fechado, jogo em primeiro plano, hotkey pressionada e dados recentes. Trocar de alvo ou perder uma condição reinicia a espera.
+- Compartilha `Require static geometry visibility`: quando ativo, exige LOS estática até o osso selecionado. Essa checagem tem as mesmas limitações do OBJ descritas abaixo.
+- Usa `SendInput` para pressionar o botão esquerdo e soltá-lo após aproximadamente 30 ms, na próxima iteração disponível. Também solicita soltura ao perder ativação, abrir o menu, perder o foco ou encerrar. Não inicia um clique enquanto o botão esquerdo já está pressionado.
+- `--read-only` também desativa os cliques automáticos. `--demo` apenas incrementa o contador de cliques simulados, com volumes sintéticos ao redor dos bones; não injeta cliques.
+- `Submitted clicks` conta solicitações enviadas ao Windows, não disparos ou acertos confirmados pelo jogo. A precisão temporal depende dos frames. Armas automáticas podem produzir mais de um disparo durante uma pressão; não há sincronização com munição ou cadência da arma.
+
+O offset do campo sob a mira foi conferido no mesmo dump fixo do perfil. Sua leitura no jogo e a aceitação de `SendInput` pelo CS2 ainda precisam de teste no Windows. Falhas de entrada desabilitam o triggerbot e aparecem no menu.
 
 ## Colisão e visibilidade
 

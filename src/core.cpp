@@ -270,6 +270,34 @@ std::optional<Target> select_target(const Frame& f, Bone bone, float fov, bool v
     }
     return best;
 }
+std::uint64_t trigger_candidate(const Frame& f, Bone bone, bool visible, const CollisionScene& scene) {
+    const auto b = static_cast<std::size_t>(bone);
+    if (!f.alive || !f.crosshair_pawn || b >= 3 || !finite(f.eye))
+        return 0;
+    for (const auto& p : f.players) {
+        if (p.pawn != f.crosshair_pawn || p.pawn == f.local_pawn || p.health <= 0 || p.team == f.team ||
+            (p.team != 2 && p.team != 3))
+            continue;
+        if (visible && (!p.bones[b] || scene.visibility(f.map, f.eye, *p.bones[b]) != Visibility::Visible))
+            return 0;
+        return p.pawn;
+    }
+    return 0;
+}
+bool TriggerTimer::update(std::uint64_t candidate, double now_ms, int delay_ms, int interval_ms) {
+    if (!candidate || !std::isfinite(now_ms) || delay_ms < 0 || interval_ms < 50) {
+        candidate_ = 0;
+        return false;
+    }
+    if (candidate != candidate_) {
+        candidate_ = candidate;
+        entered_ms_ = now_ms;
+    }
+    if (now_ms - entered_ms_ < delay_ms || now_ms < next_shot_ms_)
+        return false;
+    next_shot_ms_ = now_ms + interval_ms;
+    return true;
+}
 Frame demo_frame(double seconds, Angles angles, Vec2 viewport) {
     Frame f;
     f.eye = {0, 0, 64};
@@ -291,6 +319,21 @@ Frame demo_frame(double seconds, Angles angles, Vec2 viewport) {
         p.bones = {p.origin + Vec3{0, 0, 68}, p.origin + Vec3{0, 0, 62}, p.origin + Vec3{0, 0, 48}};
         f.players.push_back(p);
     }
+    // Synthetic demo hit volumes: 4-unit spheres around the displayed bone points.
+    const float pitch = angles.pitch * rad, yaw = angles.yaw * rad;
+    const Vec3 forward{std::cos(pitch) * std::cos(yaw), std::cos(pitch) * std::sin(yaw), -std::sin(pitch)};
+    float nearest = std::numeric_limits<float>::infinity();
+    for (const auto& player : f.players)
+        for (const auto& bone : player.bones) {
+            if (!bone)
+                continue;
+            const Vec3 delta = *bone - f.eye;
+            const float along = dot(delta, forward);
+            if (along > 0 && along < nearest && length(delta - forward * along) <= 4) {
+                nearest = along;
+                f.crosshair_pawn = player.pawn;
+            }
+        }
     return f;
 }
 } // namespace lsd

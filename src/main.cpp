@@ -32,6 +32,43 @@ class Keys {
   private:
     std::array<bool, 256> now_{}, old_{};
 };
+class TriggerClick {
+  public:
+    ~TriggerClick() {
+        release();
+    }
+    bool held() const {
+        return held_;
+    }
+    bool expired() const {
+        return held_ && Clock::now() >= release_at_;
+    }
+    bool press() {
+        INPUT input{};
+        input.type = INPUT_MOUSE;
+        input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        if (held_ || SendInput(1, &input, sizeof(input)) != 1)
+            return false;
+        held_ = true;
+        release_at_ = Clock::now() + std::chrono::milliseconds(30);
+        return true;
+    }
+    bool release() {
+        if (!held_)
+            return true;
+        INPUT input{};
+        input.type = INPUT_MOUSE;
+        input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        if (SendInput(1, &input, sizeof(input)) != 1)
+            return false;
+        held_ = false;
+        return true;
+    }
+
+  private:
+    bool held_{};
+    Clock::time_point release_at_{};
+};
 struct Options {
     bool demo{};
     bool write{true};
@@ -105,7 +142,8 @@ void draw_fov(ImDrawList* draw, const Frame& f, Vec2 viewport, float fov) {
 void draw_frame(const Frame& f, const Config& c, const CollisionScene& scene, Vec2 size,
                 const std::optional<Target>& target) {
     auto* draw = ImGui::GetBackgroundDrawList();
-    draw_fov(draw, f, size, c.fov);
+    if (c.show_fov)
+        draw_fov(draw, f, size, c.fov);
     for (const auto& p : f.players) {
         if (!c.teammates && p.team == f.team)
             continue;
@@ -197,6 +235,7 @@ int run(const Options& options) {
     bool menu = true;
     Angles demo_angles{};
     int edit_menu = config.menu_key, edit_aim = config.aim_key, edit_exit = config.exit_key;
+    int edit_trigger = config.trigger_key;
     std::array<char, 1024> collision_path{};
     std::array<char, 256> collision_map{};
     const auto copy_text = [&] {
@@ -215,8 +254,19 @@ int run(const Options& options) {
     std::optional<Angles> diag_current_angles, diag_target_angles, diag_output_angles;
     std::uint64_t successful_writes = 0;
     DWORD last_write_error = ERROR_SUCCESS;
+    TriggerTimer trigger_timer;
+    TriggerClick trigger_click;
+    std::uint64_t trigger_shots = 0;
+    const auto release_trigger = [&] {
+        if (!trigger_click.release()) {
+            config.trigger = false;
+            message = "SendInput mouse release failed; trigger disabled (release will be retried)";
+        }
+    };
     while (overlay.pump()) {
         keys.update();
+        if (trigger_click.expired() || !config.trigger || !keys.down(config.trigger_key) || menu)
+            release_trigger();
         if (keys.pressed(config.exit_key))
             break;
         if (keys.pressed(config.menu_key))
@@ -339,6 +389,37 @@ int run(const Options& options) {
                 }
             }
         }
+        // Trigger uses the crosshair entity, not the larger aim-selection FOV.
+        const bool trigger_focus =
+            options.demo ? GetForegroundWindow() == overlay.window() : game && GetForegroundWindow() == game;
+        const bool trigger_active =
+            config.trigger && !menu && trigger_focus && keys.down(config.trigger_key) && frame &&
+            frame->alive && std::chrono::duration<float>(Clock::now() - now).count() < 0.1f &&
+            (options.demo ||
+             (process && process->writable() && source && source->same_local_pawn(frame->local_pawn)));
+        const Address trigger_pawn =
+            trigger_active ? trigger_candidate(*frame, config.bone, config.require_visibility, scene) : 0;
+        if (!trigger_pawn || trigger_click.expired())
+            release_trigger();
+        const bool manual_fire = !trigger_click.held() && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+        const bool fire =
+            trigger_timer.update(manual_fire ? 0 : trigger_pawn,
+                                 std::chrono::duration<double, std::milli>(Clock::now() - started).count(),
+                                 config.trigger_delay_ms, config.trigger_interval_ms);
+        if (fire && !trigger_click.held()) {
+            if (options.demo) {
+                ++trigger_shots; // Demo never injects mouse input into another program.
+            } else if (GetForegroundWindow() == game && source && frame &&
+                       source->same_local_pawn(frame->local_pawn) &&
+                       source->crosshair_pawn(frame->local_pawn) == trigger_pawn) {
+                if (trigger_click.press())
+                    ++trigger_shots;
+                else {
+                    config.trigger = false;
+                    message = "SendInput mouse press failed; trigger disabled";
+                }
+            }
+        }
         label(ImGui::GetForegroundDrawList(), {14, 12}, IM_COL32_WHITE, "LSDWare | " + status);
         if (menu) {
             ImGui::SetNextWindowSize({580, 650}, ImGuiCond_FirstUseEver);
@@ -367,6 +448,9 @@ int run(const Options& options) {
             ImGui::SameLine();
             ImGui::Checkbox("Teammates", &config.teammates);
             ImGui::SeparatorText("Aim training");
+            ImGui::Checkbox("Show FOV circle", &config.show_fov);
+            ImGui::SameLine();
+            ImGui::Checkbox("Show aim diagnostics", &config.show_aim_diagnostics);
             ImGui::Checkbox("Enable assistance while hotkey held", &config.aim);
             ImGui::SliderFloat("FOV half-angle (degrees)", &config.fov, 0.1f, 45, "%.1f");
             ImGui::SliderFloat("Smoothing time constant (s)", &config.smoothing, 0, 2, "%.3f");
@@ -377,7 +461,16 @@ int run(const Options& options) {
             ImGui::Text("Last activation latency: %.0f ms", response_ms);
             ImGui::TextWrapped(
                 "Latency is target entering the eligible cone -> hotkey press, not a CS2 hit measurement.");
-            if (ImGui::CollapsingHeader("Aim diagnostics", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("Enable triggerbot while hotkey held", &config.trigger);
+            ImGui::SliderInt("Trigger delay (ms)", &config.trigger_delay_ms, 0, 1000);
+            ImGui::SliderInt("Trigger interval (ms)", &config.trigger_interval_ms, 50, 2000);
+            ImGui::Text("Trigger key: VK %d (default Mouse 5) | %s: %llu", config.trigger_key,
+                        options.demo ? "Simulated clicks" : "Submitted clicks",
+                        static_cast<unsigned long long>(trigger_shots));
+            ImGui::TextWrapped("Trigger uses the enemy under the crosshair and the visibility filter above; "
+                               "independent of aim assistance.");
+            if (config.show_aim_diagnostics &&
+                ImGui::CollapsingHeader("Aim diagnostics", ImGuiTreeNodeFlags_DefaultOpen)) {
                 const auto yn = [](bool value) { return value ? "YES" : "NO"; };
                 ImGui::Text("Assistance enabled: %s", yn(config.aim));
                 ImGui::Text("Target found: %s", yn(diag_target));
@@ -433,12 +526,14 @@ int run(const Options& options) {
             ImGui::SeparatorText("Hotkeys (decimal Windows VK codes)");
             key_editor("Menu", edit_menu);
             key_editor("Hold aim", edit_aim);
+            key_editor("Hold trigger", edit_trigger);
             key_editor("Exit", edit_exit);
             if (ImGui::Button("Apply keys"))
                 try {
                     auto next = config;
                     next.menu_key = edit_menu;
                     next.aim_key = edit_aim;
+                    next.trigger_key = edit_trigger;
                     next.exit_key = edit_exit;
                     next.validate();
                     config = next;
@@ -462,6 +557,7 @@ int run(const Options& options) {
                     config = next;
                     edit_menu = config.menu_key;
                     edit_aim = config.aim_key;
+                    edit_trigger = config.trigger_key;
                     edit_exit = config.exit_key;
                     copy_text();
                     message = "Config loaded";
@@ -470,6 +566,8 @@ int run(const Options& options) {
                 }
             ImGui::SameLine();
             if (ImGui::Button("Reconnect")) {
+                release_trigger();
+                trigger_timer.update(0, 0, 0, 50);
                 source.reset();
                 process.reset();
                 next_connect = Clock::now();
