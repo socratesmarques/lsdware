@@ -47,10 +47,18 @@ No Windows, use os comandos MSVC do `README.md`, não esses caminhos locais Linu
 
 - Compilação com MSVC; o preset e o workflow Windows foram preparados, mas não executados aqui.
 - Execução do binário Windows, inclusive demonstração, transparência, alinhamento DPI, hotkeys e recuperação de falhas gráficas.
-- Leitura/escrita de memória de um processo CS2 real ou efeito de `dwViewAngles` sobre a câmera.
+- Leitura/escrita de memória de um processo CS2 real ou efeito de `dwViewAngles` sobre a câmera. A execução normal agora pede acesso de escrita; `--read-only` preserva o modo somente leitura.
 - Correspondência entre o identificador fornecido `25966348` e a build interna `14191`. A execução pode conferir o primeiro no manifesto Steam e exige que o segundo corresponda ao perfil.
 - Stride de entidades, identidade/serial de handles, buffer e índices de bones por modelo, nome de mapa e layout ABI do schema na instalação do usuário.
 - Correspondência de um OBJ de colisão real com a revisão do mapa instalado; somente uma parede sintética foi carregada nos testes.
-- Workflow GitHub Actions: arquivo criado, sem push ou execução remota nesta tarefa.
+- Resultado atual do GitHub Actions: não confirmado; a consulta à API de runs retornou `Forbidden`. A compilação e os testes acima foram executados no workspace.
 
 O trace interno não é parte da arquitetura final escolhida. O raycast externo não modela elementos dinâmicos nem materiais do jogo. O código exibe diagnósticos e recusa conexão em build interna incompatível; esses mecanismos não substituem a validação no jogo.
+
+## Correção do modo somente leitura
+
+A atualização foi aplicada sobre `a352b7b`, que já contém o painel de diagnóstico integrado pelo PR #1. A causa identificada foi `Options::write` iniciar como `false`, exigindo `--write-angles` mesmo quando a assistência estava habilitada no menu.
+
+A execução normal agora solicita acesso de escrita; `--read-only` o desativa explicitamente. O painel usa a permissão da conexão real e registra a quantidade de escritas concluídas e o último erro do Windows. Os pacotes de código e executável em `dist/` foram regenerados para incluir essa correção e o painel existente.
+
+Após a correção: compilação cruzada Windows x64 aprovada e 7/7 suítes do núcleo aprovadas, com 67 verificações. Ainda não foi possível executar a correção contra o CS2 neste host Linux; acesso de escrita e chamadas bem-sucedidas não comprovam que a engine aplicou os ângulos.

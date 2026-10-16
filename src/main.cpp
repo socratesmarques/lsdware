@@ -33,7 +33,8 @@ class Keys {
     std::array<bool, 256> now_{}, old_{};
 };
 struct Options {
-    bool demo{}, write{};
+    bool demo{};
+    bool write{true};
     std::filesystem::path config, profile;
     std::string expected_steam_build;
 };
@@ -59,6 +60,8 @@ Options parse(int argc, wchar_t** argv) {
             o.demo = true;
         else if (arg == L"--write-angles")
             o.write = true;
+        else if (arg == L"--read-only")
+            o.write = false;
         else if ((arg == L"--config" || arg == L"--profile" || arg == L"--steam-build") && i + 1 < argc) {
             const std::wstring value = argv[++i];
             if (arg == L"--config")
@@ -71,8 +74,9 @@ Options parse(int argc, wchar_t** argv) {
                 o.expected_steam_build.assign(value.begin(), value.end());
             }
         } else
-            throw std::runtime_error("Usage: lsdware [--demo] [--write-angles] [--config file] [--profile "
-                                     "file] [--steam-build BuildID]");
+            throw std::runtime_error(
+                "Usage: lsdware [--demo] [--read-only] [--write-angles] [--config file] [--profile "
+                "file] [--steam-build BuildID]");
     }
     return o;
 }
@@ -209,6 +213,8 @@ int run(const Options& options) {
     std::optional<Address> previous_target;
     bool diag_target = false, diag_focused = false, diag_hotkey = false, diag_local_pawn = false;
     std::optional<Angles> diag_current_angles, diag_target_angles, diag_output_angles;
+    std::uint64_t successful_writes = 0;
+    DWORD last_write_error = ERROR_SUCCESS;
     while (overlay.pump()) {
         keys.update();
         if (keys.pressed(config.exit_key))
@@ -236,6 +242,8 @@ int run(const Options& options) {
                                                    p->module(L"schemasystem.dll"), *profile);
                 process = std::move(p);
                 source = std::move(s);
+                successful_writes = 0;
+                last_write_error = ERROR_SUCCESS;
                 status = "Connected";
             } catch (const std::exception& e) {
                 status = e.what();
@@ -314,13 +322,19 @@ int run(const Options& options) {
                 diag_output_angles = angles;
                 if (options.demo)
                     demo_angles = angles;
-                else if (options.write && source && diag_local_pawn) {
+                else if (process && process->writable() && source && diag_local_pawn) {
                     // Sample was taken in this iteration, never reuse the previous frame after an RPM
                     // failure.
-                    if (std::chrono::duration<float>(Clock::now() - now).count() < 0.1f &&
-                        !process->write_angles(source->view_angles_address(), angles)) {
-                        config.aim = false;
-                        message = "WriteProcessMemory failed; aim disabled";
+                    if (std::chrono::duration<float>(Clock::now() - now).count() < 0.1f) {
+                        if (process->write_angles(source->view_angles_address(), angles)) {
+                            ++successful_writes;
+                            last_write_error = ERROR_SUCCESS;
+                        } else {
+                            last_write_error = GetLastError();
+                            config.aim = false;
+                            message = "WriteProcessMemory failed, Windows error " +
+                                      std::to_string(last_write_error) + "; aim disabled";
+                        }
                     }
                 }
             }
@@ -331,10 +345,16 @@ int run(const Options& options) {
             ImGui::SetNextWindowPos({25, 45}, ImGuiCond_FirstUseEver);
             ImGui::Begin("LSDWare - visual training", &menu, ImGuiWindowFlags_NoCollapse);
             ImGui::TextWrapped("%s", status.c_str());
-            ImGui::TextWrapped("%s", options.demo ? "Demo mode"
-                                                  : (options.write
-                                                         ? "Angle writes allowed by --write-angles"
-                                                         : "Read-only process handle; target guidance only"));
+            ImGui::TextWrapped(
+                "%s",
+                options.demo
+                    ? "Demo mode"
+                    : (!process
+                           ? (options.write ? "Waiting for a process with write access"
+                                            : "Read-only requested by --read-only")
+                           : (process->writable()
+                                  ? "Angle writes enabled; enable assistance and hold the hotkey"
+                                  : "Read-only process handle; restart without --read-only to use aim")));
             ImGui::SeparatorText("Visual");
             ImGui::Checkbox("Boxes", &config.boxes);
             ImGui::SameLine();
@@ -365,20 +385,28 @@ int run(const Options& options) {
                 ImGui::Text("Game/overlay focused: %s", yn(diag_focused));
                 ImGui::Text("Hotkey held (VK %d): %s", config.aim_key, yn(diag_hotkey));
                 ImGui::Text("Local pawn matches sample: %s", yn(diag_local_pawn));
-                ImGui::Text("Mode: %s", options.demo ? "DEMO" : (options.write ? "WRITE FLAG ENABLED" : "READ ONLY"));
+                ImGui::Text("Mode: %s", options.demo ? "DEMO"
+                                                     : (!process ? "NOT CONNECTED"
+                                                                 : (process->writable() ? "WRITE ENABLED"
+                                                                                        : "READ ONLY")));
+                ImGui::Text("Successful angle writes: %llu",
+                            static_cast<unsigned long long>(successful_writes));
+                if (last_write_error != ERROR_SUCCESS)
+                    ImGui::Text("Last write error (Windows): %lu",
+                                static_cast<unsigned long>(last_write_error));
                 if (diag_current_angles)
-                    ImGui::Text("Current angles: pitch %.2f | yaw %.2f",
-                                diag_current_angles->pitch, diag_current_angles->yaw);
+                    ImGui::Text("Current angles: pitch %.2f | yaw %.2f", diag_current_angles->pitch,
+                                diag_current_angles->yaw);
                 else
                     ImGui::TextUnformatted("Current angles: unavailable");
                 if (diag_target_angles)
-                    ImGui::Text("Target angles: pitch %.2f | yaw %.2f",
-                                diag_target_angles->pitch, diag_target_angles->yaw);
+                    ImGui::Text("Target angles: pitch %.2f | yaw %.2f", diag_target_angles->pitch,
+                                diag_target_angles->yaw);
                 else
                     ImGui::TextUnformatted("Target angles: unavailable");
                 if (diag_output_angles)
-                    ImGui::Text("Calculated output: pitch %.2f | yaw %.2f",
-                                diag_output_angles->pitch, diag_output_angles->yaw);
+                    ImGui::Text("Calculated output: pitch %.2f | yaw %.2f", diag_output_angles->pitch,
+                                diag_output_angles->yaw);
                 else
                     ImGui::TextUnformatted("Calculated output: inactive");
             }

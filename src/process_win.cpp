@@ -82,14 +82,28 @@ bool Process::read_bytes(Address address, void* out, std::size_t bytes) const {
     return ReadProcessMemory(handle_, reinterpret_cast<LPCVOID>(address), out, bytes, &read) && read == bytes;
 }
 bool Process::write_angles(Address address, Angles angles) const {
-    if (!allow_write_ || !alive() || !std::isfinite(angles.pitch) || !std::isfinite(angles.yaw) ||
-        angles.pitch < -89 || angles.pitch > 89 || angles.yaw < -180 || angles.yaw > 180)
+    if (!allow_write_) {
+        SetLastError(ERROR_ACCESS_DENIED);
         return false;
+    }
+    if (!alive()) {
+        SetLastError(ERROR_PROCESS_ABORTED);
+        return false;
+    }
+    if (!std::isfinite(angles.pitch) || !std::isfinite(angles.yaw) || angles.pitch < -89 ||
+        angles.pitch > 89 || angles.yaw < -180 || angles.yaw > 180) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return false;
+    }
     angles.roll = 0;
     SIZE_T written = 0;
-    return WriteProcessMemory(handle_, reinterpret_cast<LPVOID>(address), &angles, sizeof(angles),
-                              &written) &&
-           written == sizeof(angles);
+    if (!WriteProcessMemory(handle_, reinterpret_cast<LPVOID>(address), &angles, sizeof(angles), &written))
+        return false;
+    if (written != sizeof(angles)) {
+        SetLastError(ERROR_PARTIAL_COPY);
+        return false;
+    }
+    return true;
 }
 Module Process::module(const wchar_t* name) const {
     // ERROR_BAD_LENGTH is transient while the loader is updating its module list.

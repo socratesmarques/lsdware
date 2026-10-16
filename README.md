@@ -1,6 +1,6 @@
 # LSDWare — treino visual externo para CS2
 
-Aplicativo C++20 para Windows 10/11 x64, DirectX 11, DirectComposition e Dear ImGui. O processo externo lê entidades, desenha informações e oferece assistência de mira por escrita de ângulos quando explicitamente habilitada na execução. Há também um modo de demonstração independente do CS2.
+Aplicativo C++20 para Windows 10/11 x64, DirectX 11, DirectComposition e Dear ImGui. O processo externo lê entidades, desenha informações e oferece assistência de mira por escrita de ângulos. A conexão permite escrita por padrão; a assistência é ativada no menu e executada enquanto a hotkey estiver pressionada. Há também um modo de demonstração independente do CS2.
 
 **Estado da integração:** o código não foi executado contra o CS2 nesta máquina Linux. O perfil incluído usa o dump comunitário da build interna **14191**, publicado em **15/10/2026**, e não equivale a uma certificação de compatibilidade com uma instalação do jogo. O BuildID informado, **25966348**, pode ser conferido separadamente no manifesto Steam pelo parâmetro `--steam-build`. Não foi estabelecida neste ambiente a correspondência entre esse BuildID e a build interna 14191.
 
@@ -22,16 +22,18 @@ O CMake obtém ImGui 1.91.9b e nlohmann/json 3.12.0 por commits fixos. É necess
 Use o jogo em janela ou janela sem bordas; o overlay composto não suporta fullscreen exclusivo. Entre em um mapa de treino e execute:
 
 ```powershell
-# Leitura externa, seleção visual de alvo; sem permissão de escrita no processo.
+# Execução normal: leitura e escrita de ângulos disponíveis para o AIM.
 .\build\windows\Release\lsdware.exe --steam-build 25966348
 
-# Permite escrever ângulos; também exige habilitar a assistência no menu e segurar a hotkey.
-.\build\windows\Release\lsdware.exe --steam-build 25966348 --write-angles
+# Opcional: somente leitura, sem escrita no processo.
+.\build\windows\Release\lsdware.exe --steam-build 25966348 --read-only
 ```
 
 O aplicativo procura `cs2.exe`, lê o BuildID em `steamapps/appmanifest_730.acf` e compara com `--steam-build` quando fornecido. Independentemente dessa opção, identifica a build interna por assinatura em `engine2.dll`. Uma build interna diferente do perfil, ou uma assinatura de build ausente, impede a conexão. `OpenProcess` negado é exibido como erro; não há mecanismo de contorno.
 
-O menu inicia aberto. Feche-o com **Insert**, pois a assistência só funciona com o jogo em primeiro plano e o menu fechado. Ative `Enable assistance while hotkey held`. A configuração inicial exige visibilidade: sem um OBJ válido do mapa atual, nenhum alvo é liberado. Na execução sem `--write-angles`, a seleção continua sendo visual, mesmo com a assistência marcada.
+O menu inicia aberto. Ative `Enable assistance while hotkey held` e feche o menu com **Insert**, pois a assistência só funciona com o jogo em primeiro plano e o menu fechado. Segure **Mouse 4** para atuar sobre um alvo elegível. A configuração inicial exige visibilidade: sem um OBJ válido do mapa atual, nenhum alvo é liberado.
+
+Não é mais necessário passar `--write-angles`; abrir o executável normalmente pede acesso de leitura e escrita. A opção antiga continua aceita. `--read-only` desliga a escrita explicitamente. O painel `Aim diagnostics` mostra `WRITE ENABLED` somente quando existe uma conexão com permissão de escrita, `READ ONLY` para uma conexão somente leitura e `NOT CONNECTED` enquanto não há conexão. `Successful angle writes` conta chamadas de escrita concluídas desde a última conexão; não confirma que o jogo aplicou os ângulos. Falhas mostram o código de erro do Windows. O checkbox de assistência, a hotkey, o FOV, os bones válidos e o filtro de visibilidade continuam sendo condições necessárias.
 
 | Ação | Padrão | Código VK decimal |
 |---|---|---:|
@@ -77,7 +79,7 @@ O perfil `data/cs2-14191.json` inclui RVAs e campos refletidos de [a2x/cs2-dumpe
 
 O parser usa schema em memória quando todos os campos consumidos estão disponíveis; caso contrário, usa o conjunto fixo do perfil e mostra o motivo em `Offset diagnostics`. Entity list, controller, matriz e globals tentam assinaturas primeiro. View angles usa o RVA do snapshot. **O fallback nunca é autorizado para uma build interna diferente.** O perfil também identifica os campos estruturais não verificados: lista de entidades, buffer/índices de bones e posição do nome de mapa em globals. Não basta alterar o número de build do JSON para atualizar a integração.
 
-Para uma nova build, gere/obtenha um dump correspondente, compare as assinaturas e o ABI das estruturas não refletidas, atualize o perfil e teste primeiro sem `--write-angles`. Verifique nomes, vida, time, arma, projeção, bones, mapa e oclusão antes de testar a escrita. O programa não baixa offsets mutáveis na inicialização.
+Para uma nova build, gere/obtenha um dump correspondente, compare as assinaturas e o ABI das estruturas não refletidas, atualize o perfil e teste primeiro com `--read-only`. Verifique nomes, vida, time, arma, projeção, bones, mapa e oclusão antes de testar a escrita. O programa não baixa offsets mutáveis na inicialização.
 
 ## Estrutura e testes
 
